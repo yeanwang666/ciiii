@@ -120,6 +120,7 @@ struct RunSummary {
     log_file: PathBuf,
     error_log: Option<PathBuf>,
     case_logs_root: PathBuf,
+    artifacts_root: PathBuf,
     cases: Vec<CaseDetail>,
 }
 
@@ -165,9 +166,13 @@ fn run_suite(suite: Suite, workspace: &Path) -> Result<()> {
     let logs_root = workspace.join("logs").join(suite.dir_name());
     fs::create_dir_all(&logs_root)?;
     let timestamp = Local::now().format("%Y%m%d-%H%M%S").to_string();
-    let run_log_path = logs_root.join(format!("{}-{}.log", suite.dir_name(), timestamp));
-    let case_logs_root = logs_root.join("cases").join(&timestamp);
+    let run_dir = logs_root.join(&timestamp);
+    fs::create_dir_all(&run_dir)?;
+    let run_log_path = run_dir.join("suite.log");
+    let case_logs_root = run_dir.join("cases");
     fs::create_dir_all(&case_logs_root)?;
+    let artifacts_root = run_dir.join("artifacts");
+    fs::create_dir_all(&artifacts_root)?;
     let mut run_log = File::create(&run_log_path)?;
     let start = Local::now();
     let suite_label = manifest
@@ -194,11 +199,10 @@ fn run_suite(suite: Suite, workspace: &Path) -> Result<()> {
     let mut soft_failed = 0usize;
 
     for case in &manifest.cases {
-        let case_log_path = case_logs_root.join(format!(
-            "{}-{}.log",
-            sanitize_case_name(&case.name),
-            timestamp
-        ));
+        let case_slug = sanitize_case_name(&case.name);
+        let case_log_path = case_logs_root.join(format!("{case_slug}.log"));
+        let case_artifact_dir = artifacts_root.join(&case_slug);
+        fs::create_dir_all(&case_artifact_dir)?;
         writeln!(
             run_log,
             "[case] starting {} -> {}",
@@ -213,6 +217,10 @@ fn run_suite(suite: Suite, workspace: &Path) -> Result<()> {
             workspace,
             &case_log_path,
             manifest.default_timeout_secs,
+            &run_dir,
+            &case_artifact_dir,
+            &timestamp,
+            &case_slug,
         )?;
 
         let status_str = outcome.status.as_str();
@@ -239,7 +247,7 @@ fn run_suite(suite: Suite, workspace: &Path) -> Result<()> {
     }
 
     let end = Local::now();
-    let error_log_path = logs_root.join("error.log");
+    let error_log_path = run_dir.join("error.log");
     let mut error_log = None;
     if failed > 0 {
         let message = format!(
@@ -267,6 +275,7 @@ fn run_suite(suite: Suite, workspace: &Path) -> Result<()> {
         log_file: rel_path(&run_log_path, workspace),
         error_log,
         case_logs_root: rel_path(&case_logs_root, workspace),
+        artifacts_root: rel_path(&artifacts_root, workspace),
         cases: case_details,
     };
 
@@ -323,6 +332,10 @@ fn run_case(
     workspace: &Path,
     log_path: &Path,
     default_timeout: u64,
+    run_dir: &Path,
+    case_artifact_dir: &Path,
+    run_id: &str,
+    case_slug: &str,
 ) -> Result<CaseOutcome> {
     let script_path = workspace.join(&case.path);
     if !script_path.exists() {
@@ -349,6 +362,16 @@ fn run_case(
     if !case.args.is_empty() {
         command.args(&case.args);
     }
+    fs::create_dir_all(case_artifact_dir)?;
+    let case_log_dir = log_path.parent().unwrap_or_else(|| Path::new("."));
+    command.env("STARRY_WORKSPACE_ROOT", workspace);
+    command.env("STARRY_RUN_ID", run_id);
+    command.env("STARRY_RUN_DIR", run_dir);
+    command.env("STARRY_CASE_NAME", &case.name);
+    command.env("STARRY_CASE_SLUG", case_slug);
+    command.env("STARRY_CASE_LOG_PATH", log_path);
+    command.env("STARRY_CASE_LOG_DIR", case_log_dir);
+    command.env("STARRY_CASE_ARTIFACT_DIR", case_artifact_dir);
 
     let start = Instant::now();
     let output = command

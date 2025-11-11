@@ -4,20 +4,23 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 CRATE_DIR="${WORKSPACE}/tests/ci/cases"
-LOG_DIR="${WORKSPACE}/logs/ci"
 TARGET_DIR="${WORKSPACE}/target/ci-cases"
 BINARY_NAME="file_io_basic"
 TARGET_TRIPLE="${TARGET_TRIPLE:-aarch64-unknown-linux-musl}"
 DISK_IMAGE="${STARRYOS_DISK_IMAGE:-${WORKSPACE}/.cache/StarryOS/arceos/disk.img}"
 DEST_PATH="${STARRYOS_TEST_PATH:-/usr/tests/${BINARY_NAME}}"
 
-mkdir -p "${LOG_DIR}"
+RUN_ID="${STARRY_RUN_ID:-$(date +%Y%m%d-%H%M%S)}"
+RUN_DIR="${STARRY_RUN_DIR:-${WORKSPACE}/logs/ci/${RUN_ID}}"
+CASE_ARTIFACT_DIR="${STARRY_CASE_ARTIFACT_DIR:-${RUN_DIR}/artifacts/${BINARY_NAME}}"
+mkdir -p "${CASE_ARTIFACT_DIR}"
+
 export CARGO_TARGET_DIR="${TARGET_DIR}"
 
 HOST_BIN="${TARGET_DIR}/release/${BINARY_NAME}"
 TARGET_BIN="${TARGET_DIR}/${TARGET_TRIPLE}/release/${BINARY_NAME}"
-TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
-LOG_FILE="${LOG_DIR}/${BINARY_NAME}-${TIMESTAMP}.log"
+TIMESTAMP="${RUN_ID}"
+HOST_LOG="${CASE_ARTIFACT_DIR}/host-${TIMESTAMP}.log"
 
 if [[ ! -f "${CRATE_DIR}/Cargo.toml" ]]; then
   echo "[file-io-basic] 未找到 Rust 测试工程：${CRATE_DIR}" >&2
@@ -32,9 +35,9 @@ if [[ ! -x "${HOST_BIN}" ]]; then
   exit 1
 fi
 
-echo "[file-io-basic] 运行 host 版本 -> ${LOG_FILE}" >&2
-if ! "${HOST_BIN}" | tee "${LOG_FILE}"; then
-  echo "[file-io-basic] 主机版执行失败，详见 ${LOG_FILE}" >&2
+echo "[file-io-basic] 运行 host 版本 -> ${HOST_LOG}" >&2
+if ! "${HOST_BIN}" | tee "${HOST_LOG}"; then
+  echo "[file-io-basic] 主机版执行失败，详见 ${HOST_LOG}" >&2
   exit 1
 fi
 
