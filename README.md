@@ -1,16 +1,6 @@
 # Starry Test Harness
 
-Rust 原型仓库，用于为 Kylin-X / Starry OS 构建分层自动化测试体系。目标是给研发、测试人员提供一个统一入口，可以在 PR、nightly、灰度阶段按层次执行不同类型的用例（ci/stress/daily），并输出可追踪的日志与报告。
-
-## 关键特性
-
-- **Rust 驱动**：`starry-test-harness` CLI 负责解析测试清单、执行脚本/二进制用例、生成 JSON 报告。
-- **Make 统一入口**：遵循"`make <suite> <action>`"约定，例如 `make ci-test run`、`make daily-test publish`。
-- **分层目录**：`tests/<suite>/suite.toml` 描述用例；CI 套件内包含 `cases/` Rust 工程 + `test-utils/` 辅助库 + `run_*.sh` 脚本，便于研发/测试统一扩展。
-- **日志可追踪**：所有执行输出落在 `logs/<suite>/`，失败时还会写入 `error.log` 方便 CI 收集。
-- **StarryOS 集成**：`ci-test` 会自动从 GitHub 拉取 StarryOS、编译镜像并在 QEMU 中验证 BusyBox Shell。
-- **AArch64 关注**：默认面向 AArch64，后续再考虑别的架构。
-- **用例模板**：`templates/rust-ci-case` 可配合 cargo-generate 快速生成标准化测试工程。
+基于Rust构建的原型仓库，用于为 Kylin-X / Starry OS 构建分层自动化测试体系。目标是给研发、测试人员提供一个统一入口，可以在 PR、nightly、灰度阶段按层次执行不同类型的用例（ci/stress/daily），并输出可追踪的日志与报告。
 
 ## 仓库结构
 
@@ -40,6 +30,46 @@ Rust 原型仓库，用于为 Kylin-X / Starry OS 构建分层自动化测试体
 
 ## 使用方式
 
+### ci test流程
+
+1、执行ci test
+
+在工作空间执行
+
+```bash
+make ci-test run
+```
+
+ Makefile 会将 ci-test 解析为测试套件（SUITE），将 run 解析为动作（ACTION）。接着，执行cargo run --quiet --bin starry-test-harness -- ci-test run 命令，启动基于 Rust 的测试工具 starry-test-harness。进一步地，starry-test-harness 会调用 scripts/ci_build_starry.sh 脚本来准备 Starry OS 镜像。这个过程包括：
+
+* 克隆 StarryOS 的 Git 仓库。
+* 同步子模块。
+* 在 StarryOS 目录中执行 make build 和 make img 来构建完整的操作系统镜像。
+
+基于此，测试程序 starry-test-harness 会解析 tests/ci/suite.toml 文件，里面定义了 ci-test 套件包含的所有测试用例，按照suite.toml中定义的顺序，逐个执行测试用例。此外，本项目将每个用例的输出写入到 logs/ci/cases/<timestamp>/<case>.log。最终会生成一个总的运行日志 logs/ci/ci-<timestamp>.log 和一个 JSON 格式的运行结果 logs/ci/last_run.json。同时，如果有任何测试用例失败，程序会创建一个 logs/ci/error.log 文件，并以非零状态码退出，这样持续集成（CI）系统就能捕获到失败状态。
+
+2、添加 ci 测试用例
+
+1. **生成骨架**：执行 `templates/add_ci_case.sh <binary_name> [display_name]` 自动在 `tests/ci/cases/src/bin/` 生成基础模板。
+   > 例如：`templates/add_ci_case.sh verify_syscall_abi "Verify Syscall ABI"` 会生成 `tests/ci/cases/src/bin/verify_syscall_abi.rs`。
+2. **完善逻辑**：根据提示在生成的 `run()` 中补全测试代码，可复用 `test-utils` 中的工具函数；失败时返回 `Err("原因".into())` 以便日志追踪。
+3. **登记运行条目**：在 `tests/ci/suite.toml` 中新增 `[[cases]]`，大多数 Rust 二进制可直接复用 `tests/ci/run_rust_case.sh`，通过 `args` 指定要运行的目标。
+   > 例如，在 `tests/ci/suite.toml` 中添加：
+   > ```toml
+   > [[cases]]
+   > name = "Verify Syscall ABI"
+   > description = "检查系统调用接口是否符合预期"
+   > path = "tests/ci/run_rust_case.sh"
+   > args = ["verify_syscall_abi"]
+   > ```
+4. **如需自定义脚本**：特殊流程（如额外预处理/后处理）可以依旧编写独立的 `run_*.sh`，并在 `path` 中指向该脚本。
+   > 例如：如果测试需要预先加载一个内核模块，可以编写 `tests/ci/run_with_module.sh` 脚本，并在 `suite.toml` 中设置 `path = "tests/ci/run_with_module.sh"`。
+5. **本地验证**：执行 `make <suite> run` 或直接运行脚本，检查 `logs/<suite>/` 下是否产生日志。
+
+> 常用环境变量：`STARRYOS_DISK_IMAGE` 指向 rootfs（默认 `.cache/StarryOS/arceos/disk.img`）；`TARGET_TRIPLE` 控制 `cargo build --target`；`STARRYOS_TEST_PATH` 指定写入镜像内的路径；`SKIP_DISK_IMAGE=1` 仅运行主机版测试。
+
+
+-----------------------------待完善-------------------------------------------
 ```bash
 make ci-test run          # PR/CI 基础功能
 make stress-test run      # nightly 压力测试
