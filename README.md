@@ -102,14 +102,14 @@
     执行 `templates/add_ci_case.sh` 脚本可以快速生成一个测试用例模板。
 
     ```bash
-    # 用法: ./templates/add_ci_case.sh <binary_name>
+    # 用法: ./templates/add_ci_case.sh <case_name>
     ./templates/add_ci_case.sh my_ci_test
     ```
-    该命令会在 `tests/ci/cases/src/bin/` 目录下创建一个 `my_ci_test.rs` 文件，并提示下一步需要做的修改。
+    该命令会在 `tests/ci/cases/tests/` 目录下创建一个 `my_ci_test.rs` 文件，并提示下一步需要做的修改。
 
 2.  **实现测试逻辑**:
-    打开新生成的 `my_ci_test.rs` 文件，在 `run()` 函数中编写你的测试代码。
-    > **注意**: CI 用例的模板与 stress/daily 不同，它不要求输出 JSON。成功时返回 `Ok(())`，失败时返回 `Err("原因".into())` 即可。框架会自动处理日志和状态。
+    打开新生成的 `my_ci_test.rs` 文件，使用 `#[test]` 函数编写断言。
+    > **注意**: CI 用例完全依赖 Rust 原生测试框架，断言失败会自动标记为失败，无需手动打印 `PASS/FAIL`。
 
 3.  **在 `suite.toml` 中注册**:
     根据上一步脚本的提示，打开 `tests/ci/suite.toml` 并添加对应的 `[[cases]]` 条目。
@@ -118,8 +118,10 @@
     [[cases]]
     name = "my-ci-test"
     path = "tests/ci/run_case.sh" # 固定指向 CI 的运行器
-    args = ["my_ci_test"]               # args[0] 是你的文件名 (不含 .rs)
+    args = ["my_ci_test"]               # args[0] 是你的测试文件名 (不含 .rs)
     ```
+
+    harness 会自动把交叉编译好的测试二进制写入 StarryOS 镜像，并在虚拟机内执行该程序；Rust 测试框架返回的退出码会直接作为 PASS/FAIL。
 
 ## 依赖与环境
 

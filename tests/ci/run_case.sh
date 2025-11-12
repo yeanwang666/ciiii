@@ -12,7 +12,12 @@ CRATE_DIR="${WORKSPACE}/tests/ci/cases"
 TARGET_DIR="${WORKSPACE}/target/ci-cases"
 
 BINARY_NAME="$1"
-DEST_PATH="${2:-/usr/tests/${BINARY_NAME}}"
+DEST_PATH_RAW="${2:-/usr/tests/${BINARY_NAME}}"
+if [[ "${DEST_PATH_RAW}" != /* ]]; then
+  DEST_PATH="/usr/tests/${DEST_PATH_RAW}"
+else
+  DEST_PATH="${DEST_PATH_RAW}"
+fi
 CASE_LABEL="${STARRY_CASE_NAME:-${BINARY_NAME}}"
 
 RUN_ID="${STARRY_RUN_ID:-$(date +%Y%m%d-%H%M%S)}"
@@ -51,26 +56,8 @@ fi
 mkdir -p "${CASE_ARTIFACT_DIR}"
 export CARGO_TARGET_DIR="${TARGET_DIR}"
 
-HOST_BIN="${TARGET_DIR}/release/${BINARY_NAME}"
-TARGET_BIN="${TARGET_DIR}/${TARGET_TRIPLE}/release/${BINARY_NAME}"
-HOST_LOG="${CASE_ARTIFACT_DIR}/host-${RUN_ID}.log"
-
 if [[ ! -f "${CRATE_DIR}/Cargo.toml" ]]; then
   echo "[${CASE_LABEL}] 未找到 Rust 测试工程：${CRATE_DIR}" >&2
-  exit 1
-fi
-
-echo "[${CASE_LABEL}] 构建 host 版本" >&2
-cargo build --manifest-path "${CRATE_DIR}/Cargo.toml" --release --bin "${BINARY_NAME}"
-
-if [[ ! -x "${HOST_BIN}" ]]; then
-  echo "[${CASE_LABEL}] 构建后未找到主机可执行文件 ${HOST_BIN}" >&2
-  exit 1
-fi
-
-echo "[${CASE_LABEL}] 运行 host 版本 -> ${HOST_LOG}" >&2
-if ! "${HOST_BIN}" | tee "${HOST_LOG}"; then
-  echo "[${CASE_LABEL}] 主机版执行失败，详见 ${HOST_LOG}" >&2
   exit 1
 fi
 
@@ -81,6 +68,9 @@ fi
 
 # Your change: Create fresh disk image from template
 STARRYOS_ROOT="${STARRYOS_ROOT:-${SCRIPT_DIR}/../../.cache/StarryOS}"
+if [[ "${STARRYOS_ROOT}" != /* ]]; then
+  STARRYOS_ROOT="${WORKSPACE}/${STARRYOS_ROOT}"
+fi
 ARCH="${ARCH:-aarch64}"
 ROOTFS_TEMPLATE="${STARRYOS_ROOT}/rootfs-${ARCH}.img"
 CLEANUP_DISK=0
@@ -134,17 +124,24 @@ if ! rustup target list --installed | grep -q "^${TARGET_TRIPLE}$"; then
   rustup target add "${TARGET_TRIPLE}"
 fi
 
-echo "[${CASE_LABEL}] 构建 ${TARGET_TRIPLE} 版本" >&2
-cargo build \
+echo "[${CASE_LABEL}] 构建 ${TARGET_TRIPLE} 测试二进制" >&2
+cargo test \
   --manifest-path "${CRATE_DIR}/Cargo.toml" \
   --release \
-  --bin "${BINARY_NAME}" \
+  --no-run \
+  --test "${BINARY_NAME}" \
   --target "${TARGET_TRIPLE}"
 
-if [[ ! -f "${TARGET_BIN}" ]]; then
-  echo "[${CASE_LABEL}] 未找到交叉编译产物 ${TARGET_BIN}" >&2
+TARGET_DEPS_DIR="${TARGET_DIR}/${TARGET_TRIPLE}/release/deps"
+TARGET_TEST_BIN="$(find "${TARGET_DEPS_DIR}" -maxdepth 1 -type f -perm -111 -name "${BINARY_NAME}-*" | sort | head -n 1 || true)"
+
+if [[ -z "${TARGET_TEST_BIN}" ]]; then
+  echo "[${CASE_LABEL}] 未找到交叉编译测试产物 ${TARGET_DEPS_DIR}/${BINARY_NAME}-*" >&2
   exit 1
 fi
+
+cp "${TARGET_TEST_BIN}" "${CASE_ARTIFACT_DIR}/${BINARY_NAME}" 2>/dev/null || true
+TARGET_TEST_BIN="${TARGET_TEST_BIN}"
 
 echo "[${CASE_LABEL}] 写入磁盘镜像 -> ${DEST_PATH}" >&2
 
@@ -155,18 +152,48 @@ if [[ ! -w "${DISK_IMAGE}" ]]; then
   DEBUGFS_CMD="sudo debugfs"
 fi
 
-${DEBUGFS_CMD} -w "${DISK_IMAGE}" -R "mkdir /usr" >/dev/null 2>&1 || true
-${DEBUGFS_CMD} -w "${DISK_IMAGE}" -R "mkdir /usr/tests" >/dev/null 2>&1 || true
+DEST_DIR=$(dirname "${DEST_PATH}")
+DEST_FILENAME=$(basename "${DEST_PATH}")
+
+IFS='/' read -ra DEST_SEGMENTS <<< "${DEST_DIR}"
+CURRENT=""
+for SEGMENT in "${DEST_SEGMENTS[@]}"; do
+  [[ -z "${SEGMENT}" ]] && continue
+  CURRENT+="/${SEGMENT}"
+  ${DEBUGFS_CMD} -w "${DISK_IMAGE}" -R "mkdir ${CURRENT}" >/dev/null 2>&1 || true
+done
 
 # debugfs write command requires cd to target directory first
-DEST_FILENAME=$(basename "${DEST_PATH}")
 if ! ${DEBUGFS_CMD} -w "${DISK_IMAGE}" << EOF
-cd /usr/tests
+cd ${DEST_DIR}
 rm ${DEST_FILENAME}
-write ${TARGET_BIN} ${DEST_FILENAME}
+write ${TARGET_TEST_BIN} ${DEST_FILENAME}
 quit
 EOF
 then
   echo "[${CASE_LABEL}] failed to write binary to disk image" >&2
   exit 1
 fi
+
+VM_RUNNER="${STARRY_VM_RUNNER:-${CI_TEST_RUNNER:-${WORKSPACE}/scripts/starry_vm_runner.py}}"
+if [[ ! -x "${VM_RUNNER}" ]]; then
+  echo "[${CASE_LABEL}] 未找到 starry_vm_runner：${VM_RUNNER}" >&2
+  exit 1
+fi
+
+COMMAND_TIMEOUT="${STARRY_CASE_TIMEOUT_SECS:-600}"
+VM_STDOUT="${CASE_ARTIFACT_DIR}/vm-${RUN_ID}.log"
+VM_STDERR="${CASE_ARTIFACT_DIR}/vm-${RUN_ID}.err"
+
+echo "[${CASE_LABEL}] 启动 StarryOS 执行 ${DEST_PATH}" >&2
+if ! python3 "${VM_RUNNER}" \
+  --root "${STARRYOS_ROOT}" \
+  --arch "${ARCH}" \
+  --command "${DEST_PATH}" \
+  --command-timeout "${COMMAND_TIMEOUT}" \
+  2> >(tee "${VM_STDERR}" >&2) | tee "${VM_STDOUT}"; then
+  echo "[${CASE_LABEL}] 虚拟机执行失败，详见 ${VM_STDERR}" >&2
+  exit 1
+fi
+
+echo "[${CASE_LABEL}] StarryOS 执行完成，日志已写入 ${VM_STDOUT}" >&2
