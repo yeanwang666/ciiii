@@ -48,7 +48,11 @@ clone_or_update_repo
 STARRYOS_COMMIT=$(git -C "${STARRYOS_ROOT}" rev-parse HEAD)
 log "StarryOS commit: ${STARRYOS_COMMIT}"
 
-DEFAULT_TOOLCHAIN="nightly-2025-05-05-aarch64-unknown-linux-gnu"
+HOST_TRIPLE="$(rustc -Vv 2>/dev/null | awk '/^host:/ {print $2}')"
+if [[ -z "${HOST_TRIPLE}" ]]; then
+  HOST_TRIPLE="x86_64-unknown-linux-gnu"
+fi
+DEFAULT_TOOLCHAIN="${STARRYOS_TOOLCHAIN:-nightly-2025-05-05-${HOST_TRIPLE}}"
 if ! command -v rustup >/dev/null 2>&1; then
   log "rustup not found, please install Rust toolchains before running build"
   exit 1
