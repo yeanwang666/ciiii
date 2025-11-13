@@ -13,7 +13,14 @@ if [[ "${STARRYOS_ROOT}" != /* ]]; then
 fi
 
 ROOTFS_TEMPLATE="${STARRYOS_ROOT}/rootfs-${ARCH}.img"
+ROOTFS_CACHE_DIR="${ROOTFS_CACHE_DIR:-${REPO_ROOT}/.cache/rootfs}"
+ALT_ROOTFS="${ROOTFS_CACHE_DIR}/rootfs-${ARCH}.img"
 CLEANUP_DISK=0
+
+if [[ ! -f "${ROOTFS_TEMPLATE}" && -f "${ALT_ROOTFS}" ]]; then
+  echo "[starry-boot] primary rootfs missing, fallback to cache: ${ALT_ROOTFS}"
+  ROOTFS_TEMPLATE="${ALT_ROOTFS}"
+fi
 
 if [[ ! -f "${ROOTFS_TEMPLATE}" ]]; then
   cat <<EOF >&2
