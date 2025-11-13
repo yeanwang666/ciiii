@@ -122,6 +122,24 @@
 
     harness 会自动把交叉编译好的测试二进制写入 StarryOS 镜像，并在虚拟机内执行该程序；Rust 测试框架返回的退出码会直接作为 PASS/FAIL。
 
+## 超时配置
+
+测试用例在虚拟机内的执行时间受 `suite.toml` 中的 `timeout_secs` 控制：
+
+- **全局默认超时**：`default_timeout_secs`（CI 套件当前为 300 秒）。
+- **单个用例超时**：在 `[[cases]]` 中设置 `timeout_secs = <秒数>` 可覆盖默认值。
+
+示例：
+```toml
+[[cases]]
+name = "long-running-test"
+path = "tests/ci/run_case.sh"
+args = ["my_test"]
+timeout_secs = 1200  # 单独为这个用例设置 20 分钟超时
+```
+
+如果测试用例运行时间较长被提前终止，请根据实际需要调整对应的 `timeout_secs` 或 `default_timeout_secs`。
+
 ## 依赖与环境
 
 本地运行需要以下工具：
@@ -139,4 +157,3 @@
 - `STARRYOS_ROOT`: StarryOS 本地克隆路径。
 
 这些环境变量可以在 workflow 文件中修改，以适配不同的测试目标。
-1
