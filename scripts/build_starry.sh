@@ -10,16 +10,8 @@ ARCH=${ARCH:-aarch64}
 # CI 模式：必须由 workflow 提供 STARRYOS_REMOTE
 # 本地模式：如果 STARRYOS_REMOTE 未指定，则使用默认值
 ################################################################################
-if [[ "${CI:-}" == "true" ]]; then
-  if [[ -z "${STARRYOS_REMOTE:-}" ]]; then
-    echo "[build-starry] ERROR: STARRYOS_REMOTE must be provided in CI"
-    exit 1
-  fi
-else
-  STARRYOS_REMOTE="${STARRYOS_REMOTE:-https://github.com/kylin-x-kernel/StarryOS.git}"
-  echo "[build-starry] Local mode: using default STARRYOS_REMOTE=${STARRYOS_REMOTE}"
-fi
-STARRYOS_REF=${STARRYOS_REF:-main}
+STARRYOS_REMOTE="${STARRYOS_REMOTE:-https://github.com/kylin-x-kernel/StarryOS.git}"
+STARRYOS_COMMIT="${STARRYOS_COMMIT:-main}"
 STARRYOS_ROOT=${STARRYOS_ROOT:-${REPO_ROOT}/.cache/StarryOS}
 STARRYOS_DEPTH=${STARRYOS_DEPTH:-0}
 ARTIFACT_DIR="${REPO_ROOT}/artifacts/${SUITE}"
@@ -40,19 +32,14 @@ log() {
 clone_or_update_repo() {
   if [[ ! -d "${STARRYOS_ROOT}/.git" ]]; then
     log "Cloning StarryOS from ${STARRYOS_REMOTE}"
-    depth_args=()
-    if [[ "${STARRYOS_DEPTH}" != "0" ]]; then
-      depth_args=(--depth "${STARRYOS_DEPTH}")
-    fi
-    git clone "${depth_args[@]}" --recursive --single-branch --branch "${STARRYOS_REF}" "${STARRYOS_REMOTE}" "${STARRYOS_ROOT}"
+    git clone --recursive "${STARRYOS_REMOTE}" "${STARRYOS_ROOT}"
   else
     log "Updating existing StarryOS repo at ${STARRYOS_ROOT}"
     git -C "${STARRYOS_ROOT}" fetch origin --tags --prune
-    git -C "${STARRYOS_ROOT}" checkout "${STARRYOS_REF}"
-    git -C "${STARRYOS_ROOT}" pull --ff-only origin "${STARRYOS_REF}"
-    git -C "${STARRYOS_ROOT}" submodule sync --recursive
-    git -C "${STARRYOS_ROOT}" submodule update --init --recursive
   fi
+  git -C "${STARRYOS_ROOT}" checkout "${STARRYOS_COMMIT}"
+  git -C "${STARRYOS_ROOT}" submodule sync --recursive
+  git -C "${STARRYOS_ROOT}" submodule update --init --recursive
 }
 
 clone_or_update_repo
