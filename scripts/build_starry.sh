@@ -6,10 +6,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 SUITE=${1:-ci-test}
 ARCH=${ARCH:-aarch64}
-################################################################################
-# CI 模式：必须由 workflow 提供 STARRYOS_REMOTE
-# 本地模式：如果 STARRYOS_REMOTE 未指定，则使用默认值
-################################################################################
+
 STARRYOS_REMOTE="${STARRYOS_REMOTE:-https://github.com/kylin-x-kernel/StarryOS.git}"
 STARRYOS_COMMIT="${STARRYOS_COMMIT:-main}"
 STARRYOS_ROOT=${STARRYOS_ROOT:-${REPO_ROOT}/.cache/StarryOS}
