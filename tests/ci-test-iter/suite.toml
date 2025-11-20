@@ -33,3 +33,39 @@ name = "sigstop-sigcont"
 description = "测试 SIGSTOP 和 SIGCONT 信号的进程状态管理"
 path = "tests/ci-test-iter/run_case.sh"
 args = ["sigstop_sigcont"]
+
+[[cases]]
+name = "ptrace-traceme"
+description = "测试 PTRACE_TRACEME 基本功能"
+path = "tests/ci-test-iter/run_case.sh"
+args = ["ptrace_traceme"]
+
+[[cases]]
+name = "ptrace-regs"
+description = "测试 PTRACE 寄存器读取功能 (GETREGSET)"
+path = "tests/ci-test-iter/run_case.sh"
+args = ["ptrace_regs"]
+
+[[cases]]
+name = "ptrace-memory"
+description = "测试 PTRACE 内存读取功能 (PEEKDATA)"
+path = "tests/ci-test-iter/run_case.sh"
+args = ["ptrace_memory"]
+
+[[cases]]
+name = "ptrace-attach"
+description = "测试 PTRACE_ATTACH 和 PTRACE_DETACH 功能"
+path = "tests/ci-test-iter/run_case.sh"
+args = ["ptrace_attach"]
+
+[[cases]]
+name = "ptrace-signal"
+description = "测试 PTRACE 信号拦截与修改功能"
+path = "tests/ci-test-iter/run_case.sh"
+args = ["ptrace_signal"]
+
+[[cases]]
+name = "ptrace-events"
+description = "测试 PTRACE 事件追踪功能 (FORK, EXEC, EXIT 等)"
+path = "tests/ci-test-iter/run_case.sh"
+args = ["ptrace_events"]

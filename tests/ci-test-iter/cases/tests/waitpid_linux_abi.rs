@@ -168,8 +168,7 @@ fn waitpid_wcontinued_with_wnohang() {
             let result = waitpid(pid, &mut status, WCONTINUED | WNOHANG);
             if result != 0 {
                 eprintln!(
-                    "Warning: WCONTINUED before SIGCONT returned {} (expected 0)",
-                    result
+                    "Warning: WCONTINUED before SIGCONT returned {result} (expected 0)"
                 );
             }
 
@@ -181,13 +180,11 @@ fn waitpid_wcontinued_with_wnohang() {
             let result2 = waitpid(pid, &mut status, WCONTINUED | WNOHANG);
             assert_eq!(
                 result2, pid,
-                "应检测到继续事件 (result={}, status=0x{:x})",
-                result2, status
+                "应检测到继续事件 (result={result2}, status=0x{status:x})"
             );
             assert!(
                 wifcontinued!(status),
-                "状态应指示继续 (expected 0xffff, got 0x{:x})",
-                status
+                "状态应指示继续 (expected 0xffff, got 0x{status:x})"
             );
 
             // Clean up
@@ -255,16 +252,16 @@ fn waitpid_multiple_stops_and_continues() {
 
                 // Wait for stop
                 let r1 = waitpid(pid, &mut status, WUNTRACED);
-                assert_eq!(r1, pid, "第 {} 次停止检测失败", i);
-                assert!(wifstopped!(status), "第 {} 次应处于停止状态", i);
+                assert_eq!(r1, pid, "第 {i} 次停止检测失败");
+                assert!(wifstopped!(status), "第 {i} 次应处于停止状态");
 
                 // Continue
                 kill(pid, SIGCONT);
 
                 // Optionally wait for continue event
                 let r2 = waitpid(pid, &mut status, WCONTINUED);
-                assert_eq!(r2, pid, "第 {} 次继续检测失败", i);
-                assert!(wifcontinued!(status), "第 {} 次应处于继续状态", i);
+                assert_eq!(r2, pid, "第 {i} 次继续检测失败");
+                assert!(wifcontinued!(status), "第 {i} 次应处于继续状态");
             }
 
             // Wait for final exit

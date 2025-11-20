@@ -18,7 +18,7 @@ pub fn temp_file(prefix: &str, create: bool) -> Result<PathBuf> {
         .take(8)
         .map(char::from)
         .collect();
-    let filename = format!("{}-{}", prefix, suffix);
+    let filename = format!("{prefix}-{suffix}");
     path.push(filename);
     if create {
         File::create(&path).with_context(|| format!("无法创建临时文件 {}", path.display()))?;

@@ -60,8 +60,7 @@ fn waitpid_child_exit_with_code() {
                 assert_eq!(
                     wexitstatus!(status),
                     exit_code,
-                    "退出码应为 {}",
-                    exit_code
+                    "退出码应为 {exit_code}"
                 );
             }
         }
@@ -268,8 +267,7 @@ fn waitpid_multiple_children_any_order() {
         for &pid in &expected_pids {
             assert!(
                 reaped_pids.contains(&pid),
-                "应回收 PID {} 的子进程",
-                pid
+                "应回收 PID {pid} 的子进程"
             );
         }
     }
