@@ -26,27 +26,11 @@ if [[ ! -f "${MANIFEST_PATH}" ]]; then
 fi
 
 PACKAGE_NAME="$(
-  MANIFEST_PATH="${MANIFEST_PATH}" \
   cargo metadata \
     --manifest-path "${MANIFEST_PATH}" \
     --format-version 1 \
     --no-deps \
-  | MANIFEST_PATH="${MANIFEST_PATH}" python3 -c '
-import json
-import os
-import sys
-from pathlib import Path
-
-manifest_path = Path(os.environ["MANIFEST_PATH"]).resolve()
-metadata = json.load(sys.stdin)
-
-for package in metadata.get("packages", []):
-    if Path(package.get("manifest_path", "")).resolve() == manifest_path:
-        print(package.get("name"))
-        break
-else:
-    raise SystemExit("[stress] failed to locate package in cargo metadata")
-'
+  | python3 -c 'import json, sys; print(json.load(sys.stdin)["packages"][0]["name"])'
 )"
 
 TARGET_DIR="${WORKSPACE_ROOT}/target/stress-cases"

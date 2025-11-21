@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 
 READY_MSG = "QEMU waiting for connection"
-PROMPT = "starry:~# "  # 注意末尾有空格
+PROMPT = "starry:~#"
 EXIT_PATTERN = re.compile(r"__EXIT:(-?\d+)__")
 
 

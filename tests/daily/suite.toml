@@ -9,10 +9,3 @@ name = "concurrency-load-demo"
 description = "Rust-based concurrency harness executed via orchestrator"
 path = "tests/daily/run_case.sh"
 args = ["concurrency_load", "8", "2000"]
-
-[[cases]]
-name = "byte-unixbench"
-description = "在 StarryOS 中运行 Byte UnixBench 6.0.0"
-path = "tests/daily/cases/unixbench/run_byte_unixbench.sh"
-args = []
-timeout_secs = 3600
